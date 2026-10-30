@@ -44,7 +44,6 @@ const DATA={"months":{"11":[{"date":"2026-11-02","day":2,"dow":0,"week":10,"holi
 const SHORT=Object.fromEntries(Object.entries(DATA.subjects).map(([k,v])=>[k,v[0]]));
 const MS={11:'Ноябрь',12:'Декабрь'};
 const periods=DATA.slots;
-let selectedMonth=11,selectedWeek=10,showRooms=true;
 const $=(id)=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const mondayOf=w=>new Date(Date.UTC(2026,7,31+7*(w-1)));
@@ -52,6 +51,18 @@ const fmtDay=d=>pad(d.getUTCDate())+'.'+pad(d.getUTCMonth()+1);
 const getDay=(m,w,dow)=>DATA.months[String(m)].find(v=>v.week===w&&v.dow===dow);
 const weekdates=w=>{let d=mondayOf(w),e=new Date(d);e.setUTCDate(e.getUTCDate()+5);return fmtDay(d)+'–'+fmtDay(e)};
 const weekName=w=>'Неделя '+w+' · '+(w%2?'нечётная':'чётная');
+// Compare local calendar dates as UTC midnights so daylight-saving changes do not shift weeks.
+function defaultWeek(days,now=new Date()){
+ const today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+ const weeks=[...new Set(days.map(day=>day.week))].sort((a,b)=>a-b);
+ return weeks.find(week=>today>=mondayOf(week).getTime()&&today<mondayOf(week+1).getTime())??weeks[0];
+}
+const allDays=Object.values(DATA.months).flat();
+const today=new Date();
+let selectedWeek=defaultWeek(allDays,today),showRooms=true;
+const currentMonth=today.getMonth()+1;
+let selectedMonth=(DATA.months[String(currentMonth)]||[]).some(day=>day.week===selectedWeek)
+ ?currentMonth:Number(allDays.find(day=>day.week===selectedWeek).date.slice(5,7));
 function evHtml(ev){return '<div class="ev"><span class="n">'+ev.p+'</span><span class="s"><div class="subject">'+SHORT[ev.s]+'</div>'+(DATA.subjects[ev.s][2]?'<div class="teacher">'+DATA.subjects[ev.s][2]+'</div>':'')+(showRooms?'<div class="room">'+ev.r+'</div>':'')+'</span><span class="type '+(ev.t==='ПЗ'?'pz':'')+'">'+ev.t+'</span></div>'}
 function monthBlock(m){
  const days=DATA.months[String(m)],weeks=[...new Set(days.map(v=>v.week))];
@@ -116,8 +127,7 @@ function renderDetail(){
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
  selectedMonth=b.dataset.month==='all'?'all':+b.dataset.month;
- if(selectedMonth==='all')selectedWeek=Math.min(...Object.values(DATA.months).flat().map(x=>x.week));
- else selectedWeek=Math.min(...DATA.months[String(selectedMonth)].map(x=>x.week));
+ selectedWeek=defaultWeek(selectedMonth==='all'?allDays:DATA.months[String(selectedMonth)]);
  render();
 }));
 $('legendGrid').innerHTML=Object.entries(DATA.subjects).map(([code,entry])=>'<div class="legend-item"><strong>'+entry[0]+'</strong> — '+entry[1]+(entry[2]?' · '+entry[2]:'')+'</div>').join('');
